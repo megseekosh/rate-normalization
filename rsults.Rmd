@@ -1,0 +1,661 @@
+---
+title: "Rate normalization results"
+author: "Meg Cychosz"
+date: "5/15/2021"
+output: 
+  bookdown::pdf_document2:
+    latex_engine: xelatex # to render IPA in the PDF
+    keep_tex: true
+indent: true
+mainfont: Doulos SIL # to render IPA in the PDF
+---
+
+```{r, settings, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      include=FALSE)
+```
+
+```{r, libraries, include=FALSE}
+library('tidyverse')
+library('ggplot2')
+library('kableExtra')
+library('lme4')
+library('lmerTest')
+library('grid')
+library('broom.mixed')
+
+library('tikzDevice')
+options(tikzLatexPackages = c(getOption("tikzLatexPackages"),
+                                  "\\usepackage{tipa}",
+                                  "\\usepackage{qtree}"))
+```
+
+# Experiment 1
+
+```{r, load data}
+shkas <- read.csv('shkas.csv') %>%
+  filter(trial!='<end data>' & trial!='<start header>' & trial!='RT identification'
+         & trial!='shkas.ssf' & trial!='1 30' & trial!='1 1' & trial!='none' & trial!='button' & trial!='1 2 3 4 5 6' & trial!='test'
+         & trial!='<end header>' & trial!='<start data>' & stimulus!='NA' & rating!='NA' & participant!='practice') %>% # some cleaning
+  filter(participant!='2a') %>% # remove the experimenter practice blocks (7 completed blocks)
+  filter(participant!='8') %>% # remove the non-native speaker 
+  group_by(participant) %>%
+  mutate(block=rep(c(1,2,3,4),each=90)) # add block variable
+
+# remove the n=7 participants with >80% of no ('0') response (288 trials)
+final_shkas <- shkas %>%
+  count(participant,rating) %>%
+  mutate(percen_response=(n/360)*100) %>%
+  filter(rating==0 & percen_response < 20) %>%
+  select(-rating) %>%
+  merge(., shkas, by=c('participant')) %>%
+  select(-n, -percen_response) 
+
+# sanity check there should be 21
+final_shkas_count <- final_shkas %>%
+  count(participant) %>%
+  NROW()
+```
+
+```{r, create exp 1 stimuli variables}
+# create rate variable
+final_shkas2 <- final_shkas %>% 
+  mutate(rate = ifelse((stimulus <= 10), "fast", ifelse(stimulus >= 11 & stimulus <= 20, "base", "slow"))) %>%
+  arrange(participant,stimulus) %>%
+  mutate(sh_ch_cont = rep(1:10,times=63,each=12)) %>% # create sh-CH continuum
+  filter(rating!=0) # remove 'no' responses 
+```
+
+```{r, prepare exp 1 data for modeling}
+#long /k/ = sounds like 'ch'
+#1 = good /sh/; 6= good /ch/
+
+# what percentage of each stimulus item was '1'; what percentage was '2' 
+# what response did each stimulus item receive 
+
+model_data <- final_shkas2 %>%
+  group_by(participant, stimulus) %>% # each participant heard each stimulus 12x
+  summarize(avg_rating = mean(rating)) %>% # so get the mean rating of each stimulus
+  merge(., final_shkas2, by=c('participant', 'stimulus')) %>%
+  distinct_at(., vars(participant,stimulus), .keep_all = T)
+
+# what % of each stimulus # received a '1' rating, indicating SH response
+pre_plot_data <- final_shkas2 %>%
+  group_by(participant, stimulus) %>%
+  count(rating) %>%
+  mutate(percen_rating=n/sum(n)) %>%
+  select(-n) %>%
+  ungroup() %>%
+  complete(participant, stimulus, rating, fill = list(percen_rating = 0)) %>%  # fill in '0' if the item didn't receive a particular rating level 
+  filter(rating==1) # only select % '1' responses
+ 
+plot_data <- final_shkas2 %>%
+  select(rate,sh_ch_cont,stimulus) %>% # grab the rate variables, etc. that were previously removed
+  merge(., pre_plot_data, by=c("stimulus")) %>%
+  distinct_at(., vars(participant,stimulus), .keep_all = T) %>%
+  mutate(participant=as.factor(participant))
+```
+
+```{r, exp1-response-function, fig.cap="Spaghetti plot of percentage /ʃ/ response by series step and speaking rate: /k/ duration manipulation. Thick, darker lines represent group averages by speaking rate and lighter lines represent individual participant responses. Ribbons represent 95% confidence intervals.", echo=FALSE, include=TRUE}
+
+sh <- textGrob("[ ʃkɑs ]", gp=gpar(fontsize=14, fontface="bold"))
+ch <- textGrob("[ tʃkɑs ]", gp=gpar(fontsize=14, fontface="bold"))
+
+jpeg("/Users/megcychosz/Box/rate_normalization/Results/figures/exp1-percen.jpeg", height = 400, width = 600) # print out to maintain IPA symbols in figure 
+
+# spaghetti plot
+plot_data %>% 
+  mutate(rate=factor(rate,levels = c("fast","base","slow"))) %>%
+  ggplot(., aes(x=sh_ch_cont, y=percen_rating)) + 
+  geom_line(aes(group=factor(participant)), stat="smooth", method="loess", color='gray70',se=FALSE, alpha=.5, size=.5) +
+  xlab("Continuum step") + 
+  ylab("% [ ʃ ] response") + 
+  theme(axis.text=element_text(size=12),
+        plot.margin = unit(c(1,1,2,1), "lines"),
+      axis.title=element_text(size=17,face="bold"),
+      legend.title = element_text(size=12, face="bold"),
+       legend.background = element_rect(fill="white", 
+                                  size=0.5, linetype="solid"),
+  legend.position = c(.85,.75),
+  legend.text = element_text(size=12)) + 
+  guides(fill = guide_legend(override.aes = list(alpha = .55))) +
+  scale_x_continuous(breaks=seq(1,10,by=1)) +
+   annotation_custom(sh,xmin=1,xmax=1,ymin=-0.25,ymax=-0.25) + 
+   annotation_custom(ch,xmin=10,xmax=10,ymin=-0.25,ymax=-0.25) + 
+
+  geom_smooth(aes(fill=rate, color=rate, lty=rate)) + # now add the grouping by rate
+
+  coord_cartesian(clip="off") + # turn off plot clipping  
+
+  labs(color="Speaking Rate",fill="Speaking Rate",lty="Speaking Rate")
+
+dev.off()
+
+```
+
+```{r, exp1-eshness-rating, fig.cap="Spaghetti plot of /ʃ/-ness ratings (1=good /ʃ/, 6=good /tʃ/) by series step and speaking rate: /k/ duration manipulation. Thick, darker lines represent group averages by speaking rate and lighter lines represent individual participant responses. Ribbons represent 95% confidence intervals.", echo=FALSE, include=TRUE}
+jpeg("/Users/megcychosz/Box/rate_normalization/Results/figures/exp1-eshness-rating.jpeg", height = 400, width = 600)
+
+final_shkas2 %>% 
+  mutate(rate=factor(rate,levels = c("fast","base","slow")),
+         sh_ch_cont = as.numeric(sh_ch_cont)) %>%
+  ggplot(., aes(x=sh_ch_cont, y=rating),color=rate) + 
+  geom_line(aes(group=factor(participant)), stat="smooth", method="loess", color='gray70',se=FALSE, alpha=.5, size=.5) +
+  xlab("Continuum step") + 
+  ylab("[ ʃ ]-ness rating") + 
+  theme(axis.text=element_text(size=12),
+      axis.title=element_text(size=17,face="bold"),
+      legend.title = element_text(size=12, face="bold"), 
+      legend.text = element_text(size=12),
+      legend.position = c(.85,.25),
+      legend.background = element_rect(fill="white", 
+                                  size=0.5, linetype="solid")) +
+  guides(colour = guide_legend(override.aes = list(alpha = .55))) +
+  scale_x_continuous(breaks=seq(1,10,by=1)) +
+  scale_y_continuous(breaks=seq(1,6,by=1)) +
+  
+  annotation_custom(sh,xmin=1,xmax=1,ymin=.3,ymax=.3) + 
+  annotation_custom(ch,xmin=10,xmax=10,ymin=.3,ymax=.3) + 
+
+  geom_smooth(aes(fill=rate, color=rate, lty=rate)) + # now add the grouping by rate
+
+  coord_cartesian(clip="off") + # turn off plot clipping  
+
+  labs(color="Speaking Rate",fill="Speaking Rate",lty="Speaking Rate")
+
+dev.off()
+
+```
+
+```{r, calculate exp1 slopes}
+
+lm_model_data <- plot_data %>%
+  group_by(participant, rate) %>% 
+  filter(sh_ch_cont %in% (4:7)) %>% 
+  do(lm_slope = (lm(percen_rating~sh_ch_cont, data=.)$coefficients[2])) %>% # model between three points  
+  unnest(lm_slope) 
+
+diff_model_data <- plot_data %>%
+  group_by(participant, rate) %>% 
+  filter(sh_ch_cont == 4 | sh_ch_cont == 7) %>%
+  arrange(participant,stimulus) %>%
+  mutate(diff_47_slope = map2(percen_rating, lead(percen_rating), `-`)) %>% # difference between points 4 and 6
+  filter(diff_47_slope!='NA') %>%
+  mutate(diff_47_slope = as.numeric(diff_47_slope))
+
+slope_model_data <- diff_model_data %>%
+  merge(., lm_model_data, by=c("participant", "rate")) %>%
+  mutate(stimulus = as.factor(stimulus))
+```
+
+```{r, fit exp1 models to predict slopes}
+# a higher value indicates a steeper slope indicating that the crossover happened faster 
+
+# linear model
+base <- lmer(lm_slope ~ (1|participant), data=slope_model_data)
+m1 <- lmer(lm_slope ~ rate + (1|participant), data=slope_model_data)
+anova(base,m1) # significant effect of rate on 4-7 slope
+summary(m1) 
+
+# 4-6 difference 
+base_model <- lmer(diff_47_slope ~ (1|participant), data=slope_model_data)
+m2 <- lmer(diff_47_slope ~ rate + (1|participant), data=slope_model_data)
+anova(base_model, m2)
+summary(m2)  
+
+# compare fast to slow rates 
+slope_model_data$rate <- relevel(factor(slope_model_data$rate), ref = "fast")
+summary(m3 <- lmer(lm_slope ~ rate + (1|participant), data=slope_model_data))
+summary(m4 <- lmer(diff_47_slope ~ rate + (1|participant), data=slope_model_data))
+
+
+# slower rate /k/ results in significantly more 'sh' responses
+# but no effect of fast /k/ rate on 'sh' responses
+# slow /k/ also differs significantly from fast /k/ (unsurprisingly)
+```
+
+```{r, preprare to fit models predicting percentage SH}
+# only model at category boundary
+percen_model_data <- plot_data %>%
+    filter(sh_ch_cont %in% (4:7)) %>%
+  mutate(sh_ch_cont=as.factor(sh_ch_cont))
+```
+
+```{r, fit exp1 models to predict sh percentage, eval=FALSE}
+# we don't model item-level effects here because we averaged over each stimulus item for this analysis
+
+# ideal baseline
+base1 <- lmer(percen_rating ~ (1|participant) + (+rate|participant) + (+sh_ch_cont|participant) + (+rate|sh_ch_cont), data=percen_model_data) # doesn't converge
+
+base2 <- lmer(percen_rating ~ (1|participant) + (+rate|participant) + (+sh_ch_cont|participant), data=percen_model_data) # doesn't converge
+
+base3 <- lmer(percen_rating ~ (1|participant) + (+rate|participant), data=percen_model_data) # doesn't converge
+
+base4 <- lmer(percen_rating ~ (+rate|participant), data=percen_model_data) #more important to model participant-level effects of rate than sh_ch_cont because rate is our variable of interest
+
+# ---------------- add fixed effects 
+# when we fit sh_ch_cont as a fixed effect, we convert it to numeric to ease interpretibility 
+percen_model_data2 <- percen_model_data %>% mutate(sh_ch_cont=as.numeric(sh_ch_cont))
+
+percen_m1 <- lmer(percen_rating ~ rate + (+rate|participant), data=percen_model_data2)
+anova(base4,percen_m1) # significant effect of rate on % 'sh' responses 
+
+percen_m2 <- lmer(percen_rating ~ rate + sh_ch_cont + (+rate|participant), data=percen_model_data2)
+anova(percen_m2,percen_m1) # sig effect of continuum step, which is not surprising since the acoustic cues varied by step
+
+percen_m3 <- lmer(percen_rating ~ rate*sh_ch_cont + (+rate|participant), data=percen_model_data2)
+anova(percen_m2,percen_m3) # no effect of interaction term
+```
+
+```{r, exp1-sh-percen-model-summary, echo=FALSE, include=TRUE}
+# ---------------- FINAL MODEL
+percen_m4 <- percen_model_data %>%
+  mutate(sh_ch_cont=as.numeric(sh_ch_cont)) %>%
+  lmer(percen_rating ~ rate + sh_ch_cont + (+rate|participant), data=.) 
+exp1_m_tbl_sum <- summary(percen_m4) # for writeup
+
+
+# create model summary
+exp1_m_tbl <- rbind(tidy(percen_m4, 
+                         effects = c("fixed"), 
+                         conf.int = TRUE)) %>%
+  select(-effect,-df) %>%
+  mutate(term=recode(term,"(Intercept)"="Intercept",
+                     "ratefast"="Rate:Fast",
+                     "rateslow"="Rate:Slow",
+                     "sh_ch_cont"="Continuum Step")) %>%
+  mutate_if(is.numeric, round, digits=2) %>%
+  rename(Parameter=term,
+         Estimate=estimate,
+         S.E. = std.error,
+         `z-statistic`=statistic,
+         `p-value`=p.value) %>%
+  mutate(`95% CI`=paste(conf.low,"-",conf.high)) %>%
+  select(-conf.low,-conf.high)
+
+knitr::kable(exp1_m_tbl, 
+             caption = 'Model predicting percentage /ʃ/ response: Experiment 1', 
+             booktabs=T) %>%
+  kable_styling() %>% 
+  landscape()
+
+```
+
+```{r, prepare to model exp1 rating data}
+for_modeling <- final_shkas2 %>% 
+  mutate(participant=as.factor(participant),
+         stimulus=as.factor(stimulus)) %>%
+  filter(sh_ch_cont %in% (4:7)) %>%
+  mutate(sh_ch_cont=as.factor(sh_ch_cont))
+```
+
+```{r, fit exp1 models to predict sh ratings, eval=FALSE}
+# ideal baseline
+baseline1 <- for_modeling %>%
+  lmer(rating ~ + (1|participant) + (1|stimulus) + (1+stimulus|participant) + (1+rate|participant) + (1+sh_ch_cont|participant) + (1+rate|sh_ch_cont), data=.) # doesn't converge
+
+baseline2 <- for_modeling %>%
+  lmer(rating ~ + (1|participant) + (1|stimulus) + (1+stimulus|participant) + (1+rate|participant) + (1+sh_ch_cont|participant), data=.) # doesn't converge
+
+baseline3 <- for_modeling %>%
+  lmer(rating ~ + (1|participant) + (1|stimulus) + (1+stimulus|participant) + (1+rate|participant), data=.) # doesn't converge
+
+baseline4 <- for_modeling %>%
+  lmer(rating ~ + (1|participant) + (1|stimulus) + (1+rate|participant), data=.) # doesn't converge
+
+baseline5 <- for_modeling %>%
+  lmer(rating ~ + (1+stimulus|participant), data=.) # doesn't converge
+
+baseline6 <- for_modeling %>%
+  lmer(rating ~ +  (1|participant) + (1|stimulus), data=.) 
+
+# -------------- fixed effects 
+# again treat sh_ch_cont continously to ease interpretibility for the fixed effects 
+for_modeling2 <- for_modeling %>% mutate(sh_ch_cont=as.numeric(sh_ch_cont))
+
+item_model1 <- for_modeling2 %>%
+  lmer(rating ~ sh_ch_cont +  (1|participant) + (1|stimulus), data=.) 
+anova(baseline6,item_model1) # step improves
+
+item_model2 <- for_modeling2 %>%
+  lmer(rating ~ rate +  sh_ch_cont + (1|participant) + (1|stimulus), data=.) 
+anova(item_model1,item_model2) # rate improves
+```
+
+```{r, exp1-sh-rating-model-summary, echo=FALSE, include=TRUE}
+# --------------------- FINAL MODEL
+item_model2 <- for_modeling %>%
+  mutate(sh_ch_cont=as.numeric(sh_ch_cont)) %>%
+  lmer(rating ~ rate + sh_ch_cont + (1|participant) + (1|stimulus), data=.) 
+sum_item_model2 <- summary(item_model2)
+
+# create model summary table
+exp1_m_tbl2 <- rbind(tidy(item_model2, 
+                         effects = c("fixed"), 
+                         conf.int = TRUE)) %>%
+  select(-effect,-df) %>%
+  mutate(term=recode(term,"(Intercept)"="Intercept",
+                     "ratefast"="Rate:Fast",
+                     "rateslow"="Rate:Slow",
+                     "sh_ch_cont"="Continuum Step")) %>%
+  mutate_if(is.numeric, round, digits=2) %>%
+  rename(Parameter=term,
+         Estimate=estimate,
+         S.E. = std.error,
+         `z-statistic`=statistic,
+         `p-value`=p.value) %>%
+  mutate(`95% CI`=paste(conf.low,"-",conf.high)) %>%
+  select(-conf.low,-conf.high)
+
+knitr::kable(exp1_m_tbl2, 
+             caption = 'Model predicting /ʃ/-ness ratings: Experiment 1', 
+             booktabs=T) %>%
+  kable_styling() %>% 
+  landscape()
+```
+
+To test for an effect of phoneme duration on rate normalization, we modeled two different outcome variables: percentage of /ʃ/ responses and /ʃ/-ness ratings. For the percentage of /ʃ/ responses, an average /ʃ/ response was calculated for each participant, for each stimulus item (Figure \@ref(fig:exp1-response-function)) while /ʃ/-ness ratings were simply computed for each individual stimulus item presented (item-level effect) (Figure \@ref(fig:exp1-eshness-rating)). We elected to model two outcomes because traditional work on rate normalization modeled percentage phoneme responses grouped over stimuli repetitions (e.g. Diehl & Walsh, 1989), while newer work has been able to model item-level effects (e.g. Maslowski et al., 2018) and we wished to make our work comparable to both of these domains. 
+
+Figures \@ref(fig:exp1-response-function) and \@ref(fig:exp1-eshness-rating) suggest the presence of a rate normalization effect from phoneme duration manipulations. The confidence intervals surrounding the speaking rate conditions (Slow, Base, Fast) do not overlap in the middle, ambiguous section of the continuum. More specifically, we see the effect in the expected direction: slower speaking rates bias more /tʃ/ responses, and higher /tʃ/ ratings, while faster rates bias /ʃ/ responses and higher /ʃ/ ratings. 
+
+To further examine a potential rate normalization effect, we fit models to our two outcome variables. Both models were fit to ambiguous items in the middle of the stimuli series, at the categorical perception boundary (steps 4-7 in this continuum, following Bidelman et al., 2019 who modeled steps 3-5 on a 7-point continuum). To predict the percentage of /ʃ/ responses, we fit a linear mixed effects model with the maximal random effect structure that permitted model convergence. This model included random slopes of Speaking Rate by Participant; slope terms for interactions of Speaking Rate and Continuum Step did not converge, nor did models with random intercepts of Participant together with slopes of Speaking Rate by Participant. The effect of Speaking Rate (modeled categorically as "Slow," "Base," and "Fast") improved upon the random effects only model as did Continuum Step (modeled as a continuous variable) (Table \@ref(tab:exp1-sh-percen-model-summary)). Unsurprisingly, the percentage of /ʃ/ responses decreased with increased steps along the continuum ($\beta$=`r round(exp1_m_tbl_sum$coefficients[4,1],2)`, z=`r round(exp1_m_tbl_sum$coefficients[4,4],2)`, p<.001). For Speaking Rate, there was a higher percentage of /ʃ/ responses in the Fast condition than the Base condition ($\beta$=`r round(exp1_m_tbl_sum$coefficients[2,1],2)`, z=`r round(exp1_m_tbl_sum$coefficients[2,4],2)`, p=`r round(exp1_m_tbl_sum$coefficients[2,5],3)`) and a lower percentage of /ʃ/ responses in the Slow condition than Base ($\beta$=`r round(exp1_m_tbl_sum$coefficients[3,1],2)`, z=`r round(exp1_m_tbl_sum$coefficients[3,4],2)`, p=`r round(exp1_m_tbl_sum$coefficients[3,5],3)`), suggesting a rate normalization effect. 
+
+To model item-level effects, we fit a second model to predict /ʃ/ ratings (1-6 scale where a lower rating indicates more /ʃ/-ness and a higher rating indicates more /tʃ-ness/). The random effect structure again included the maximal number of terms that permitted model convergence, in this case random effects of Participant and Item. There were significant main effects of Continuum Step and Speaking Rate (Table \@ref(tab:exp1-sh-rating-model-summary)). Ratings increased with continuum steps, indicating increased perception of /tʃ/ ($\beta$=`r exp1_m_tbl2$Estimate[4]`, z=`r round(sum_item_model2$coefficients[4,4],2)`, p<.001). Most importantly, the Slow speaking rate condition predicted higher ratings, or more /tʃ/-ness, than the Base speaking rate condition ($\beta$=`r round(sum_item_model2$coefficients[3,1],2)`, z=`r round(sum_item_model2$coefficients[3,4],2)`, p=.005): a longer /k/ duration, suggesting a slower speaking rate, biased listeners to perceive and rate the stimuli as more /tʃ/-like. However, there was only a reliable effect of Speaking Rate in the Slow condition; the difference between the Fast and Base speaking rates upon listeners' rankings approached but did not reach significance.
+
+Overall, these results demonstrate that manipulating /k/ duration, while holding the syllable duration constant, significantly affected the percentage of /ʃ/ responses and /ʃ/-ness ratings, especially in the Slow speaking rate condition, suggesting that listeners can normalize for speaking rate over individual phonemes. 
+
+# Experiment 2
+
+```{r, load exp2 data}
+SHwihb <- read.csv('shwib.csv') %>%
+  filter(trial!='<end data>' & trial!='<start header>' & trial!='RT identification'
+         & trial!='stwaes.ssf' & trial!='1 30' & trial!='1 1' & trial!='none' & trial!='button' & trial!='1 2 3 4 5 6' & trial!='test'
+         & trial!='<end header>' & trial!='<start data>' & stimulus!='NA' & rating!='NA' & participant!='practice') %>% # some cleaning
+  #filter(participant!='6') %>%
+  group_by(participant) %>%
+  mutate(block=rep(c(1,2,3,4),each=90)) %>%  # add block variable
+  filter(participant !='12lf' & participant!='13LF' & participant!='3sj') # # remove 3 participants who did not complete at least 20% of trials
+
+# sanity check there should be 19 participants
+final_SHwihb_count <- SHwihb %>%
+  count(participant) %>%
+  NROW()
+```
+
+```{r, create exp2 rate variables}
+# create rate variable
+final_SHwihb <- SHwihb %>% 
+  mutate(rate = ifelse((stimulus <= 10), "fast", ifelse(stimulus >= 11 & stimulus <= 20, "base", "slow"))) %>%
+  ungroup() %>%
+  arrange(participant,stimulus) %>%
+  mutate(sh_ch_cont = rep(1:10,times=57,each=12)) %>% # create sh-ch continuum
+  filter(rating!=0) # remove 'no' responses TODO: potentially impute missing data
+```
+
+```{r, prepare exp2 for modeling}
+# what % of each stimulus # received a '1' rating, indicating /s/ response
+pre_SHwihb_plot_data <- final_SHwihb %>%
+  group_by(participant, stimulus) %>%
+  count(rating) %>%
+  mutate(percen_rating=n/sum(n)) %>%
+  select(-n) %>%
+  ungroup() %>%
+  complete(participant, stimulus, rating, fill = list(percen_rating = 0)) %>%  # fill in '0' if the item didn't receive a particular rating level 
+  filter(rating==1) # only select % '1' rating responses
+ 
+plot_SHwihb_data <- final_SHwihb %>%
+  select(rate,sh_ch_cont,stimulus) %>% # grab the rate variables, etc. that were previously removed
+  merge(., pre_SHwihb_plot_data, by=c("stimulus")) %>%
+  distinct_at(., vars(participant,stimulus), .keep_all = T) %>%
+  mutate(participant=as.factor(participant))
+```
+
+```{r, exp2-response-function, fig.cap="Spaghetti plot of percentage /ʃ/ response by series step and speaking rate: /w/ duration manipulation. Thick, darker lines represent group averages by speaking rate and lighter lines represent individual participant responses. Ribbons represent 95% confidence intervals.", echo=FALSE, include=TRUE}
+shw <- textGrob("[ ʃwɪb ]", gp=gpar(fontsize=14, fontface="bold"))
+chw <- textGrob("[ tʃwɪb ]", gp=gpar(fontsize=14, fontface="bold"))
+
+jpeg("/Users/megcychosz/Box/rate_normalization/Results/figures/exp2-percen.jpeg", height = 400, width = 600)
+
+plot_SHwihb_data %>% 
+  mutate(rate=factor(rate,levels = c("fast","base","slow"))) %>%
+  ggplot(., aes(x=sh_ch_cont, y=percen_rating)) +
+  geom_line(aes(group=factor(participant)), stat="smooth", method="loess", color="gray70",se=FALSE, alpha=.5, size=.5) + 
+  xlab("Continuum step") + 
+  ylab("% [ ʃ ] response") + 
+  theme(axis.text=element_text(size=12),
+        plot.margin = unit(c(1,1,2,1), "lines"),
+        axis.title=element_text(size=17,face="bold"),
+        legend.title = element_text(size=12, face="bold"),
+        legend.background = element_rect(fill="white", 
+                                         size=0.5, linetype="solid"),
+        legend.position = c(.85,.75),
+        legend.text = element_text(size=12)) + 
+  guides(fill = guide_legend(override.aes = list(alpha = .55))) +
+  scale_x_continuous(breaks=seq(1,10,by=1)) +
+  annotation_custom(shw,xmin=1,xmax=1,ymin=-0.25,ymax=-0.25) + 
+  annotation_custom(chw,xmin=10,xmax=10,ymin=-0.25,ymax=-0.25) + 
+
+  geom_smooth(aes(fill=rate, color=rate, lty=rate)) +
+  
+  coord_cartesian(clip="off") + # turn off plot clipping  
+  
+  labs(color="Speaking Rate",fill="Speaking Rate",lty="Speaking Rate")
+
+dev.off()
+
+```
+
+```{r, exp2-eshness-rating, fig.cap="Spaghetti plot of /ʃ/-ness ratings (1=good /ʃ/, 6=good /tʃ/) by series step and speaking rate: /w/ duration manipulation. Thick, darker lines represent group averages by speaking rate and lighter lines represent individual participant responses. Ribbons represent 95% confidence intervals.", echo=FALSE, include=TRUE}
+
+jpeg("/Users/megcychosz/Box/rate_normalization/Results/figures/exp2-eshness-rating.jpeg", height = 400, width = 600)
+
+
+final_SHwihb %>% 
+  mutate(rate=factor(rate,levels = c("fast","base","slow")),
+                     sh_ch_cont = as.numeric(sh_ch_cont)) %>%
+  ggplot(., aes(x=sh_ch_cont, y=rating),color=rate) + 
+  geom_line(aes(group=factor(participant)), stat="smooth", method="loess", color='gray70',se=FALSE, alpha=.5, size=.5) +
+  xlab("Continuum step") + 
+  ylab("[ ʃ ]-ness rating") + 
+    theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=17,face="bold"),
+        legend.title = element_text(size=12, face="bold"), 
+        legend.text = element_text(size=12),
+        legend.position = c(.85,.25),
+        legend.background = element_rect(fill="white", 
+                                         size=0.5, linetype="solid")) +
+  guides(colour = guide_legend(override.aes = list(alpha = .55))) +
+  scale_x_continuous(breaks=seq(1,10,by=1)) +
+  scale_y_continuous(breaks=seq(1,6,by=1)) +
+  
+  annotation_custom(shw,xmin=1,xmax=1,ymin=.3,ymax=.3) + 
+  annotation_custom(chw,xmin=10,xmax=10,ymin=.3,ymax=.3) + 
+  
+  geom_smooth(aes(fill=rate, color=rate, lty=rate)) + # now add the grouping by rate
+  
+  coord_cartesian(clip="off") + # turn off plot clipping  
+  
+  labs(color="Speaking Rate",fill="Speaking Rate",lty="Speaking Rate")
+
+dev.off()
+
+```
+
+```{r, calculate exp2 slopes}
+lm_SHwihb_data <- plot_SHwihb_data %>%
+  group_by(participant, rate) %>% 
+  filter(sh_ch_cont %in% (4:7)) %>% 
+  do(lm_slope = (lm(percen_rating~sh_ch_cont, data=.)$coefficients[2])) %>% # model between three points  
+  unnest(lm_slope) 
+
+
+diff_model_SHwihb <- plot_SHwihb_data %>%
+  group_by(participant, rate) %>% 
+  filter(sh_ch_cont == 4 | sh_ch_cont == 7) %>%
+  arrange(participant,stimulus) %>%
+  mutate(diff_47_slope = map2(percen_rating, lead(percen_rating), `-`)) %>% # difference between points 4 and 6
+  filter(diff_47_slope!='NA') %>%
+  mutate(diff_47_slope = as.numeric(diff_47_slope))
+
+SHwihb_slope_data <- diff_model_SHwihb %>%
+  merge(., lm_SHwihb_data, by=c("participant", "rate"))
+
+```
+
+```{r, fit exp2 models to predict slopes}
+base5 <- lmer(diff_47_slope ~ (1|participant), data=SHwihb_slope_data)
+SHwihb_m1 <- lmer(diff_47_slope ~ rate + (1|participant), data=SHwihb_slope_data)
+anova(base5, SHwihb_m1) # no effect of rate on 4:6 slope
+
+base6 <- lmer(lm_slope ~ (1|participant), data=SHwihb_slope_data)
+SHwihb_m2 <- lmer(lm_slope ~ rate + (1|participant), data=SHwihb_slope_data)
+anova(base6,SHwihb_m2) # no effect of rate
+
+```
+
+```{r, prepare to model SH percentages exp2}
+# only model at category boundary
+percen_model_data2 <- plot_SHwihb_data %>%
+    filter(sh_ch_cont %in% (4:7)) %>%
+  mutate(sh_ch_cont=as.factor(sh_ch_cont))
+```
+
+```{r, fit exp2 models to predict SH percentage, eval=FALSE}
+# ideal baseline
+base1 <- lmer(percen_rating ~ (1|participant) + (+rate|participant) + (+sh_ch_cont|participant) + (+rate|sh_ch_cont), data=percen_model_data2) # doesn't converge
+
+base2 <- lmer(percen_rating ~ (1|participant) + (+rate|participant) + (+sh_ch_cont|participant), data=percen_model_data2) # doesn't converge
+
+base3 <- lmer(percen_rating ~ (1|participant) + (+rate|participant), data=percen_model_data2) # doesn't converge
+
+base4 <- lmer(percen_rating ~ (+rate|participant), data=percen_model_data2) #more important to model participant-level effects of rate than sh_ch_cont because rate is our variable of interest
+
+# ---------------- add fixed effects 
+# again, treat sh_ch_cont continuously to ease interpretibility
+percen_model_data3 <- percen_model_data2 %>% mutate(sh_ch_cont=as.numeric(sh_ch_cont))
+
+percen_m4 <- lmer(percen_rating ~ rate + (+rate|participant), data=percen_model_data3)
+anova(base1,percen_m4) # rate improves
+
+percen_m5 <- lmer(percen_rating ~ rate + sh_ch_cont + (+rate|participant), data=percen_model_data3)
+anova(percen_m4,percen_m5) # step improves
+```
+
+```{r, exp2-sh-percen-model-summary, echo=FALSE, include=TRUE}
+# --------------- FINAL MODEL
+percen_m5 <- percen_model_data2 %>%
+  mutate(sh_ch_cont=as.numeric(sh_ch_cont)) %>%
+  lmer(percen_rating ~ rate + sh_ch_cont + (+rate|participant), data=.)
+exp2_percen_sum <- summary(percen_m5)
+
+
+# create model summary
+exp2_m_tbl <- rbind(tidy(percen_m5, 
+                         effects = c("fixed"), 
+                         conf.int = TRUE)) %>%
+  select(-effect,-df) %>%
+  mutate(term=recode(term,"(Intercept)"="Intercept",
+                     "ratefast"="Rate:Fast",
+                     "rateslow"="Rate:Slow",
+                     "sh_ch_cont"="Continuum Step")) %>%
+  mutate_if(is.numeric, round, digits=2) %>%
+  rename(Parameter=term,
+         Estimate=estimate,
+         S.E. = std.error,
+         `z-statistic`=statistic,
+         `p-value`=p.value) %>%
+  mutate(`95% CI`=paste(conf.low,"-",conf.high)) %>%
+  select(-conf.low,-conf.high)
+
+knitr::kable(exp2_m_tbl, 
+             caption = 'Model predicting percentage /ʃ/ response: Experiment 1', 
+             booktabs=T) %>%
+  kable_styling() %>% 
+  landscape()
+```
+
+```{r, prepare to model sh ratings exp2}
+SHwihb_item_data <- final_SHwihb %>%
+  filter(participant!='3') %>%
+  mutate(participant = as.factor(participant),
+         stimulus = as.factor(stimulus)) %>%
+  filter(sh_ch_cont %in% (4:7)) %>%
+  mutate(sh_ch_cont = as.factor(sh_ch_cont))
+```
+
+```{r, model sh ratings exp2, eval=FALSE}
+# ideal baseline
+baseline1 <- SHwihb_item_data %>%
+  lmer(rating ~ + (1|participant) + (1|stimulus) + (1+stimulus|participant) + (1+rate|participant) + (1+sh_ch_cont|participant) + (1+rate|sh_ch_cont), data=.) # doesn't converge
+
+baseline2 <- SHwihb_item_data %>%
+  lmer(rating ~ + (1|participant) + (1|stimulus) + (1+stimulus|participant) + (1+rate|participant) + (1+sh_ch_cont|participant), data=.) # doesn't converge
+
+baseline3 <- SHwihb_item_data %>%
+  lmer(rating ~ + (1|participant) + (1|stimulus) + (1+stimulus|participant) + (1+rate|participant), data=.) # doesn't converge
+
+baseline4 <- SHwihb_item_data %>%
+  lmer(rating ~ + (1|participant) + (1|stimulus) + (1+rate|participant), data=.) # doesn't converge
+
+baseline5 <- SHwihb_item_data %>%
+  lmer(rating ~ + (1+stimulus|participant), data=.) # doesn't converge
+
+baseline6 <- SHwihb_item_data %>%
+  lmer(rating ~ +  (1|participant) + (1|stimulus), data=.) 
+
+# ---------------- fixed effects 
+# again, treat sh_ch_cont continuously to ease interpretibility
+SHwihb_item_data2 <- SHwihb_item_data %>% mutate(sh_ch_cont=as.numeric(sh_ch_cont))
+
+exp2_rating_m1 <- SHwihb_item_data2 %>%
+  lmer(rating ~ sh_ch_cont + (1|participant) + (1|stimulus), data=.) 
+anova(baseline6, exp2_rating_m1) # improves
+AIC(exp2_rating_m1) # 6929
+
+exp2_rating_m2 <- SHwihb_item_data2 %>%
+  lmer(rating ~ rate + sh_ch_cont + (1|participant) + (1|stimulus), data=.) 
+AIC(exp2_rating_m2) #  6923
+anova(exp2_rating_m1,exp2_rating_m2) # improves
+```
+
+```{r, exp2-sh-ness-model-summary, echo=FALSE, include=TRUE}
+# -------------------- FINAL MODEL
+exp2_rating_m2 <- SHwihb_item_data %>%
+  mutate(sh_ch_cont=as.numeric(sh_ch_cont)) %>%
+  lmer(rating ~ rate + sh_ch_cont + (1|participant) + (1|stimulus), data=.) 
+
+exp2_rating_sum <- summary(exp2_rating_m2)
+
+exp2_m_tbl2 <- rbind(tidy(exp2_rating_m2, 
+                         effects = c("fixed"), 
+                         conf.int = TRUE)) %>%
+  select(-effect,-df) %>%
+  mutate(term=recode(term,"(Intercept)"="Intercept",
+                     "ratefast"="Rate:Fast",
+                     "rateslow"="Rate:Slow",
+                     "sh_ch_cont"="Continuum Step")) %>%
+  mutate_if(is.numeric, round, digits=2) %>%
+  rename(Parameter=term,
+         Estimate=estimate,
+         S.E. = std.error,
+         `z-statistic`=statistic,
+         `p-value`=p.value) %>%
+  mutate(`95% CI`=paste(conf.low,"-",conf.high)) %>%
+  select(-conf.low,-conf.high)
+
+knitr::kable(exp2_m_tbl2, 
+             caption = 'Model predicting /ʃ/-ness ratings: Experiment 2', 
+             booktabs=T) %>%
+  kable_styling() %>% 
+  landscape()
+```
+
+
+As in Experiment 1, to evaluate a potential rate normalization effect we modeled two different outcome variables: percentage of /ʃ/ responses and /ʃ/-ness ratings. Again, an average /ʃ/ response was calculated for each participant (Figure \@ref(fig:exp2-response-function)) and /ʃ/-ness ratings were computed for each individual stimulus (Figure \@ref(fig:exp2-eshness-rating)). The visualizations suggest an effect of speaking rate (/w/ duration) upon /ʃ/ responses and /ʃ/ ratings in the same direction as Experiment 1: slower speaking rates bias more /tʃ/ responses. 
+
+As before, we fit a series of models to the ambiguous items in the middle of the stimuli series, at the categorical perception boundary (steps 4 through 7). To predict the percentage of /ʃ/ responses, we fit a linear mixed effects model that included random slopes of Speaking Rate by Participant. Like Experiment 1, there were significant main effects of Speaking Rate and Continuum Step: there was a higher percentage of /ʃ/ responses as the continuum step increased (more /tʃ/-like stimuli) ($\beta$=`r round(exp2_percen_sum$coefficients[4,1],2)`, z=`r round(exp2_percen_sum$coefficients[4,4],2)`, p<.001). There was a significantly smaller percentage of /ʃ/ responses in the Slow speaking rate condition than Base condition ($\beta$=`r round(exp2_percen_sum$coefficients[3,1],2)`, z=`r round(exp2_percen_sum$coefficients[3,4],2)`, p=`r round(exp2_percen_sum$coefficients[3,5],2)`), but no difference in the percentage of /ʃ/ responses between the Fast speaking rate condition and the Base condition (Table \@ref(tab:exp2-sh-percen-model-summary)). 
+
+Finally, we fit a model to predict /ʃ/-ness ratings for these stimuli, where a lower rating indicated that listeners considered the stimuli more /ʃ/-like. The random effect structure again included random intercepts by Participant and Item and there were significant main effects of Continuum Step and Speaking Rate (Table \@ref(tab:exp2-sh-ness-model-summary)). Unsurprisingly, stimuli further along the /ʃ-tʃ/ continuum were perceived as more /tʃ/-like ($\beta$=`r round(exp2_rating_sum$coefficients[4,1],2)`, z=`r round(exp2_rating_sum$coefficients[4,4],2)`, p<.001). Longer /w/ durations, indicating a slower speaking rate, also biased listeners to perceive the stimuli as more /tʃ/-like ($\beta$=`r round(exp2_rating_sum$coefficients[3,1],2)`, z=`r round(exp2_rating_sum$coefficients[3,4],2)`, p<.001); we again did not find an effect of speaking rate in the Fast speaking rate condition. Thus, the results from Experiment 2 do show an effect of speaking rate (/w/ duration) upon the perceived phonetic boundary between /ʃ/ and /tʃ/, indicating that normalization can occur over phonemes without clear acoustic boundaries.
+
