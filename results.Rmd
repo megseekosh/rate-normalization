@@ -35,7 +35,7 @@ options(tikzLatexPackages = c(getOption("tikzLatexPackages"),
 # Experiment 1
 
 ```{r, load data}
-shkas <- read.csv('shkas.csv') %>%
+shkas <- read.csv('/Users/megcychosz/Library/CloudStorage/Box-Box/rate_normalization/Participant_Data/shkas/shkas.csv') %>%
   filter(trial!='<end data>' & trial!='<start header>' & trial!='RT identification'
          & trial!='shkas.ssf' & trial!='1 30' & trial!='1 1' & trial!='none' & trial!='button' & trial!='1 2 3 4 5 6' & trial!='test'
          & trial!='<end header>' & trial!='<start data>' & stimulus!='NA' & rating!='NA' & participant!='practice') %>% # some cleaning
@@ -103,7 +103,7 @@ plot_data <- final_shkas2 %>%
 sh <- textGrob("[ ʃkɑs ]", gp=gpar(fontsize=14, fontface="bold"))
 ch <- textGrob("[ tʃkɑs ]", gp=gpar(fontsize=14, fontface="bold"))
 
-jpeg("/Users/megcychosz/Box/rate_normalization/Results/figures/exp1-percen.jpeg", height = 400, width = 600) # print out to maintain IPA symbols in figure 
+jpeg("/Users/megcychosz/Library/CloudStorage/Box-Box/rate_normalization/Results/figures/exp1-percen.jpeg", height = 400, width = 600) # print out to maintain IPA symbols in figure 
 
 # spaghetti plot
 plot_data %>% 
@@ -136,7 +136,7 @@ dev.off()
 ```
 
 ```{r, exp1-eshness-rating, fig.cap="Spaghetti plot of /ʃ/-ness ratings (1=good /ʃ/, 6=good /tʃ/) by series step and speaking rate: /k/ duration manipulation. Thick, darker lines represent group averages by speaking rate and lighter lines represent individual participant responses. Ribbons represent 95% confidence intervals.", echo=FALSE, include=TRUE}
-jpeg("/Users/megcychosz/Box/rate_normalization/Results/figures/exp1-eshness-rating.jpeg", height = 400, width = 600)
+jpeg("/Users/megcychosz/Library/CloudStorage/Box-Box/rate_normalization/Results/figures/exp1-eshness-rating.jpeg", height = 400, width = 600)
 
 final_shkas2 %>% 
   mutate(rate=factor(rate,levels = c("fast","base","slow")),
@@ -149,15 +149,17 @@ final_shkas2 %>%
       axis.title=element_text(size=17,face="bold"),
       legend.title = element_text(size=12, face="bold"), 
       legend.text = element_text(size=12),
-      legend.position = c(.85,.25),
+      legend.position = c(.85,.75),
       legend.background = element_rect(fill="white", 
                                   size=0.5, linetype="solid")) +
   guides(colour = guide_legend(override.aes = list(alpha = .55))) +
   scale_x_continuous(breaks=seq(1,10,by=1)) +
   scale_y_continuous(breaks=seq(1,6,by=1)) +
   
-  annotation_custom(sh,xmin=1,xmax=1,ymin=.3,ymax=.3) + 
-  annotation_custom(ch,xmin=10,xmax=10,ymin=.3,ymax=.3) + 
+  scale_y_reverse() +
+
+  annotation_custom(sh,xmin=1,xmax=1,ymin=-6.9,ymax=-6.9) + 
+  annotation_custom(ch,xmin=10,xmax=10,ymin=-6.9,ymax=-6.9) +  
 
   geom_smooth(aes(fill=rate, color=rate, lty=rate)) + # now add the grouping by rate
 
@@ -369,7 +371,7 @@ Overall, these results demonstrate that manipulating /k/ duration, while holding
 # Experiment 2
 
 ```{r, load exp2 data}
-SHwihb <- read.csv('shwib.csv') %>%
+SHwihb <- read.csv('/Users/megcychosz/Library/CloudStorage/Box-Box/rate_normalization/Participant_Data/shwib/shwib.csv') %>%
   filter(trial!='<end data>' & trial!='<start header>' & trial!='RT identification'
          & trial!='stwaes.ssf' & trial!='1 30' & trial!='1 1' & trial!='none' & trial!='button' & trial!='1 2 3 4 5 6' & trial!='test'
          & trial!='<end header>' & trial!='<start data>' & stimulus!='NA' & rating!='NA' & participant!='practice') %>% # some cleaning
@@ -416,7 +418,7 @@ plot_SHwihb_data <- final_SHwihb %>%
 shw <- textGrob("[ ʃwɪb ]", gp=gpar(fontsize=14, fontface="bold"))
 chw <- textGrob("[ tʃwɪb ]", gp=gpar(fontsize=14, fontface="bold"))
 
-jpeg("/Users/megcychosz/Box/rate_normalization/Results/figures/exp2-percen.jpeg", height = 400, width = 600)
+jpeg("/Users/megcychosz/Library/CloudStorage/Box-Box/rate_normalization/Results/figures/exp2-percen.jpeg", height = 400, width = 600)
 
 plot_SHwihb_data %>% 
   mutate(rate=factor(rate,levels = c("fast","base","slow"))) %>%
@@ -449,7 +451,7 @@ dev.off()
 
 ```{r, exp2-eshness-rating, fig.cap="Spaghetti plot of /ʃ/-ness ratings (1=good /ʃ/, 6=good /tʃ/) by series step and speaking rate: /w/ duration manipulation. Thick, darker lines represent group averages by speaking rate and lighter lines represent individual participant responses. Ribbons represent 95% confidence intervals.", echo=FALSE, include=TRUE}
 
-jpeg("/Users/megcychosz/Box/rate_normalization/Results/figures/exp2-eshness-rating.jpeg", height = 400, width = 600)
+jpeg("/Users/megcychosz/Library/CloudStorage/Box-Box/rate_normalization/Results/figures/exp2-eshness-rating.jpeg", height = 400, width = 600)
 
 
 final_SHwihb %>% 
@@ -463,15 +465,17 @@ final_SHwihb %>%
         axis.title=element_text(size=17,face="bold"),
         legend.title = element_text(size=12, face="bold"), 
         legend.text = element_text(size=12),
-        legend.position = c(.85,.25),
+        legend.position = c(.85,.75),
         legend.background = element_rect(fill="white", 
                                          size=0.5, linetype="solid")) +
   guides(colour = guide_legend(override.aes = list(alpha = .55))) +
   scale_x_continuous(breaks=seq(1,10,by=1)) +
   scale_y_continuous(breaks=seq(1,6,by=1)) +
   
-  annotation_custom(shw,xmin=1,xmax=1,ymin=.3,ymax=.3) + 
-  annotation_custom(chw,xmin=10,xmax=10,ymin=.3,ymax=.3) + 
+   scale_y_reverse() +
+
+  annotation_custom(shw,xmin=1,xmax=1,ymin=-6.6,ymax=-6.6) + 
+  annotation_custom(chw,xmin=10,xmax=10,ymin=-6.6,ymax=-6.6) +  
   
   geom_smooth(aes(fill=rate, color=rate, lty=rate)) + # now add the grouping by rate
   
