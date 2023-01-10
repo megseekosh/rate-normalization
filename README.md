@@ -1,5 +1,5 @@
 # rate-normalization
-Code and data to replicate modeling in "Units of processing in perceptual normalization for speaking rate"
+Code and data to replicate modeling in "Perceptual normalization for speaking rate occurs below the level of the syllable"
 
 ## Data
 
@@ -32,6 +32,6 @@ Code and data to replicate modeling in "Units of processing in perceptual normal
 
 ## Citation
 
-Cychosz, M. & Newman, R. (under review). Units of processing in perceptual normalization for speaking rate. ([pre-print](https://psyarxiv.com/7se4h/))
+Cychosz, M. & Newman, R. (under review). Perceptual normalization for speaking rate occurs below the level of the syllable. ([pre-print](https://psyarxiv.com/7se4h/))
 
 
