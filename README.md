@@ -19,23 +19,15 @@ Code and data to replicate modeling in "Units of processing in perceptual normal
 
 `figures/exp1-eshness-rating.jpeg` - plot of [ʃ]-ness rating by continuum step from Experiment 1; generated with `results.Rmd`
 
-`figures/exp1-percen.jpeg` - plot of percentage [ʃ] responses by continuum step from Experiment 1; generated with `results.Rmd`
+`figures/exp1-prop.jpeg` - plot of proportion [ʃ] responses by continuum step from Experiment 1; generated with `results.Rmd`
 
 `figures/exp2-eshness-rating.jpeg` - plot of [ʃ]-ness rating by continuum step from Experiment 2; generated with `results.Rmd`
 
-`figures/exp2-percen.jpeg` - plot of percentage [ʃ] responses by continuum step from Experiment 2; generated with `results.Rmd`
+`figures/exp2-prop.jpeg` - plot of proportion [ʃ] responses by continuum step from Experiment 2; generated with `results.Rmd`
 
 `figures/stimuli_schema.pdf` - schema outlining speaking rate manipulations for Experiment 1
 
 `figures/stimuli_schema_exp2.pdf` - schema outlining speaking rate manipulations for Experiment 2
-
-`spbasic.bst` - Latex document for compiling Springer journals
-
-`spmpsci.bst` - Latex document for compiling Springer journals
-
-`svglov3.clo` - Latex document for compiling Springer journals
-
-`svjour3.cls` - Latex document for compiling Springer journals
 
 
 ## Citation
