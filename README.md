@@ -32,7 +32,7 @@ Code and data to replicate modeling in "Perceptual normalization for speaking ra
 
 ## Citation
 
-Cychosz, M. & Newman, R. (2023). Perceptual normalization for speaking rate occurs below the level of the syllable. *Journal of the Acoustical Society of America. 153*(3), 1486-1495. 
+Cychosz, M. & Newman, R. (2023). Perceptual normalization for speaking rate occurs below the level of the syllable. *Journal of the Acoustical Society of America, 153*(3), 1486-1495. 
 
 `shwib.csv` added 2026; an incorrectly-named file (swihb.csv) was previously included in error
 
